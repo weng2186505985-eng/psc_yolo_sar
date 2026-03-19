@@ -52,7 +52,7 @@ class CACFAR:
 
 def evaluate_cfar(dataloader):
     cfar = CACFAR()
-    # evaluate Pd, Pfa globally
+    # evaluate Pd, Pfa globally at the pixel level
     total_pd_count = 0
     total_target = 0
     
@@ -61,26 +61,26 @@ def evaluate_cfar(dataloader):
     
     for batch in dataloader:
         images = batch["images"]  # [B, 1, H, W]
-        # target box existence
-        has_gt = []
-        for target in batch["targets"]:
-            has_gt.append(1 if len(target["boxes"]) > 0 else 0)
+        # target box existence mask
+        gt_mask = torch.zeros_like(images, dtype=torch.bool)
+        for i, target in enumerate(batch["targets"]):
+            for box in target["boxes"]:
+                x1, y1, x2, y2 = box.int().tolist()
+                # 越界保护
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(images.shape[3], x2), min(images.shape[2], y2)
+                gt_mask[i, :, y1:y2, x1:x2] = True
             
-        detected = cfar.detect(images)
+        detected = cfar.detect(images).cpu()
         
-        # Image level detection: if any pixel is detected, image is positive detection
-        # Since CA-CFAR fires at pixel level, we use max per image instance
-        img_detected = detected.view(images.shape[0], -1).any(dim=1).cpu().numpy()
-        has_gt = np.array(has_gt)
+        pos_mask = gt_mask
+        neg_mask = ~gt_mask
         
-        pos_mask = (has_gt == 1)
-        neg_mask = (has_gt == 0)
+        total_pd_count += (detected & pos_mask).sum().item()
+        total_target += pos_mask.sum().item()
         
-        total_pd_count += np.sum(img_detected[pos_mask] == 1)
-        total_target += np.sum(pos_mask)
-        
-        total_pfa_count += np.sum(img_detected[neg_mask] == 1)
-        total_bk += np.sum(neg_mask)
+        total_pfa_count += (detected & neg_mask).sum().item()
+        total_bk += neg_mask.sum().item()
         
     Pd = total_pd_count / total_target if total_target > 0 else 0.0
     Pfa = total_pfa_count / total_bk if total_bk > 0 else 0.0

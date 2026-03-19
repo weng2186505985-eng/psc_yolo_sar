@@ -12,7 +12,11 @@ def save_checkpoint(model, optimizer, epoch, metrics, save_path):
     torch.save(checkpoint, save_path)
     
 def load_checkpoint(model, optimizer, load_path):
-    """加载 checkpoint 并且必须使用 weights_only=True"""
+    """
+    加载 checkpoint 并且必须使用 weights_only=True
+    注意：这里的 model 期望是 ultralytics YOLO 对象（即含有 .model 属性）或底层的 nn.Module。
+    支持兼容两者的 state_dict 隐式对齐加载。
+    """
     if os.path.isfile(load_path):
         # 加上 weights_only=True 按要求
         checkpoint = torch.load(load_path, map_location='cpu', weights_only=True)

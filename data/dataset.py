@@ -7,6 +7,9 @@ from pycocotools.coco import COCO
 
 class HRSIDDataset(Dataset):
     def __init__(self, data_root, split="train", scene_filter_file=None, transforms=None):
+        """
+        :param scene_filter_file: 仅接受文件名(例如 'inshore.json')，内部会自动与 data_root 拼装完整路径
+        """
         self.data_root = data_root
         self.split = split
         self.transforms = transforms
