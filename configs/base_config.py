@@ -13,7 +13,7 @@ class BaseConfig:
     DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
     BATCH_SIZE  = 8
     NUM_WORKERS = 4
-    EPOCHS      = 50
+    EPOCHS      = 20
     LR          = 1e-4
     WEIGHT_DECAY = 1e-5
     IMG_SIZE    = 640        # YOLOv8 标准输入尺寸

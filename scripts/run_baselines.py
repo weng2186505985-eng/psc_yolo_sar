@@ -16,17 +16,13 @@ from ultralytics import YOLO
 def evaluate_model(model_name, get_model_func, dataloader, config, load_path=None):
     device = torch.device(config.DEVICE)
     model = get_model_func()
-    model.model.to(device)
-    
-    if load_path and os.path.exists(load_path):
-        load_checkpoint(model, None, load_path)
-    
+    # If it's a YOLOv8 standard model, use its high-level predict inside Evaluator now
     evaluator = Evaluator(dataloader, device, iou_thresh=config.IOU_THRESHOLD, conf_thresh=config.CONF_THRESHOLD)
     return evaluator.evaluate(model, scene_name=f"{model_name}-Overall")
 
 def main():
     config = BaseConfig()
-    config.BATCH_SIZE = 1 # CA-CFAR requires batch iterating clearly, standard is to use evaluation dataloader
+    config.BATCH_SIZE = 8 # 多批次提高评测速度
     
     # We just need the overall test loader for baseline comparison table
     _, test_loader, _, _ = get_dataloaders(config)
@@ -44,9 +40,15 @@ def main():
     
     # 2. Plain YOLOv8
     print("\nRunning Plain YOLOv8n Baseline...")
-    # NOTE: In a real scenario, this should point to a newly trained YOLOv8n on this dataset,
-    # If the user hasn't trained it natively yet via run_baselines, we evaluate its loaded form.
-    plain_res = evaluate_model("YOLOv8n", build_plain_yolo, test_loader, config)
+    plain_weights = os.path.join(config.CHECKPOINT_DIR, "best_plain.pt")
+    if os.path.exists(plain_weights):
+        model_plain = YOLO(plain_weights, task='detect')
+        evaluator_plain = Evaluator(test_loader, torch.device(config.DEVICE), iou_thresh=config.IOU_THRESHOLD, conf_thresh=config.CONF_THRESHOLD)
+        plain_res = evaluator_plain.evaluate(model_plain, scene_name="Plain-YOLOv8n-Overall")
+    else:
+        print("Warning: No best_plain.pt found, evaluating with pre-trained weights only.")
+        plain_res = evaluate_model("YOLOv8n-Pretrained", build_plain_yolo, test_loader, config)
+    
     results["YOLOv8n"] = {
         "mAP@0.5": plain_res["mAP@0.5"],
         "Pd": plain_res["Pd"],
@@ -58,7 +60,7 @@ def main():
     psc_weights = os.path.join(config.CHECKPOINT_DIR, "best.pt")
     if os.path.exists(psc_weights):
         model = YOLO(psc_weights, task='detect')
-        replace_activations(model.model)
+        # 注意：不再调用 replace_activations，权重已在 pt 中
         evaluator = Evaluator(test_loader, torch.device(config.DEVICE), iou_thresh=config.IOU_THRESHOLD, conf_thresh=config.CONF_THRESHOLD)
         psc_res = evaluator.evaluate(model, scene_name="PSC-YOLOv8n-Overall")
     else:

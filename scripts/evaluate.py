@@ -21,7 +21,7 @@ def main():
     if os.path.exists(best_weights):
         print(f"Loading checkpoint from {best_weights}")
         model = YOLO(best_weights, task='detect')
-        replace_activations(model.model)
+        # 注意：不再调用 replace_activations，因为 best.pt 已经保存了训练好的 PSC 参数
     else:
         print("Warning: No best.pt found, using pretrained base weights.")
         model = build_psc_yolo()

@@ -6,9 +6,10 @@ from torch.utils.data import Dataset
 from pycocotools.coco import COCO
 
 class HRSIDDataset(Dataset):
-    def __init__(self, data_root, split="train", scene_filter_file=None, transforms=None):
+    def __init__(self, data_root, split="train", scene_filter_file=None, exclude_filter_file=None, transforms=None):
         """
-        :param scene_filter_file: 仅接受文件名(例如 'inshore.json')，内部会自动与 data_root 拼装完整路径
+        :param scene_filter_file: 包含图片的 ID 列表或 COCO 字典（白名单）
+        :param exclude_filter_file: 要排除的图片 ID 列表或 COCO 字典（黑名单）
         """
         self.data_root = data_root
         self.split = split
@@ -28,13 +29,46 @@ class HRSIDDataset(Dataset):
         # Filter by scene if provided
         if scene_filter_file is not None:
             scene_path = os.path.join(data_root, "annotations", scene_filter_file)
-            try:
-                with open(scene_path, 'r') as f:
-                    scene_ids = json.load(f)
-                # Keep only image IDs that are in the scene list
-                self.img_ids = [img_id for img_id in self.img_ids if img_id in scene_ids]
-            except Exception as e:
-                raise FileNotFoundError(f"Failed to load scene filter: {scene_path}. Error: {e}")
+            if os.path.exists(scene_path):
+                try:
+                    with open(scene_path, 'r') as f:
+                        scene_data = json.load(f)
+                    
+                    # Determine if it is a list of IDs or a COCO dict
+                    if isinstance(scene_data, dict) and "images" in scene_data:
+                        scene_ids = [int(img["id"]) for img in scene_data["images"]]
+                    elif isinstance(scene_data, list):
+                        scene_ids = [int(i) for i in scene_data]
+                    else:
+                        scene_ids = []
+                        print(f"Warning: Scene filter file {scene_filter_file} has an unknown format. No filtering applied.")
+                        
+                    # Filter IDs
+                    self.img_ids = [img_id for img_id in self.img_ids if int(img_id) in scene_ids]
+                    if len(self.img_ids) == 0:
+                        print(f"Warning: Scene filter {scene_filter_file} resulted in an empty dataset.")
+                except Exception as e:
+                    raise FileNotFoundError(f"Failed to load or parse scene filter: {scene_path}. Error: {e}")
+            else:
+                raise FileNotFoundError(f"Scene filter file not found: {scene_path}")
+        
+        # Exclude by scene if provided (for creating disjoint sets like Pure Offshore)
+        if exclude_filter_file is not None:
+            excl_path = os.path.join(data_root, "annotations", exclude_filter_file)
+            if os.path.exists(excl_path):
+                try:
+                    with open(excl_path, 'r') as f:
+                        excl_data = json.load(f)
+                    if isinstance(excl_data, dict) and "images" in excl_data:
+                        excl_ids = [int(img["id"]) for img in excl_data["images"]]
+                    elif isinstance(excl_data, list):
+                        excl_ids = [int(i) for i in excl_data]
+                    else:
+                        excl_ids = []
+                    
+                    self.img_ids = [img_id for img_id in self.img_ids if int(img_id) not in excl_ids]
+                except Exception as e:
+                    print(f"Error loading exclude filter: {e}")
 
     def __len__(self):
         return len(self.img_ids)

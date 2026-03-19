@@ -22,6 +22,8 @@ class Evaluator:
         self.device = device
         self.iou_thresh = iou_thresh
         self.conf_thresh = conf_thresh
+        # 保存当前子集的所有图像 ID，用于限定 COCOeval 范围
+        self.img_ids = [int(i) for i in dataloader.dataset.img_ids] if hasattr(dataloader.dataset, 'img_ids') else []
 
     @torch.no_grad()
     def evaluate(self, model, scene_name="Overall", save_dir=None):
@@ -124,6 +126,9 @@ class Evaluator:
         if len(coco_results) > 0:
             coco_dt = self.coco_gt.loadRes(coco_results)
             coco_eval = COCOeval(self.coco_gt, coco_dt, 'bbox')
+            # 关键修复：限定只评估当前 dataloader 涉及的图像 ID，防止 mAP 被全集低估
+            if self.img_ids:
+                coco_eval.params.imgIds = self.img_ids
             coco_eval.evaluate()
             coco_eval.accumulate()
             coco_eval.summarize()

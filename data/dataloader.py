@@ -55,6 +55,7 @@ def get_dataloaders(config: BaseConfig):
         data_root=config.DATA_ROOT,
         split="test",
         scene_filter_file="offshore.json",
+        exclude_filter_file="inshore.json", # 关键修复：排除近岸图像，得到纯离岸集
         transforms=get_val_transforms()
     )
     

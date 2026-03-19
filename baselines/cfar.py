@@ -51,36 +51,36 @@ class CACFAR:
         return detected
 
 def evaluate_cfar(dataloader):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cfar = CACFAR()
-    # evaluate Pd, Pfa globally at the pixel level
-    total_pd_count = 0
-    total_target = 0
     
-    total_pfa_count = 0
-    total_bk = 0
+    total_pd_count = 0.0
+    total_target = 0.0
+    total_pfa_count = 0.0
+    total_bk = 0.0
     
     for batch in dataloader:
-        images = batch["images"]  # [B, 1, H, W]
-        # target box existence mask
-        gt_mask = torch.zeros_like(images, dtype=torch.bool)
+        images = batch["images"].to(device)  # [B, 1, H, W]
+        B, C, H, W = images.shape
+        
+        # 使用 Tensor 操作批量生成 gt_mask
+        gt_mask = torch.zeros((B, C, H, W), dtype=torch.bool, device=device)
         for i, target in enumerate(batch["targets"]):
-            for box in target["boxes"]:
-                x1, y1, x2, y2 = box.int().tolist()
-                # 越界保护
-                x1, y1 = max(0, x1), max(0, y1)
-                x2, y2 = min(images.shape[3], x2), min(images.shape[2], y2)
-                gt_mask[i, :, y1:y2, x1:x2] = True
+            if len(target["boxes"]) > 0:
+                for box in target["boxes"]:
+                    x1, y1, x2, y2 = box.int().tolist()
+                    x1, y1 = max(0, x1), max(0, y1)
+                    x2, y2 = min(W, x2), min(H, y2)
+                    gt_mask[i, :, y1:y2, x1:x2] = True
             
-        detected = cfar.detect(images).cpu()
+        detected = cfar.detect(images) # [B, 1, H, W] on device
         
-        pos_mask = gt_mask
-        neg_mask = ~gt_mask
+        # 直接在 GPU 上进行像素级计数
+        total_pd_count += (detected & gt_mask).sum().item()
+        total_target += gt_mask.sum().item()
         
-        total_pd_count += (detected & pos_mask).sum().item()
-        total_target += pos_mask.sum().item()
-        
-        total_pfa_count += (detected & neg_mask).sum().item()
-        total_bk += neg_mask.sum().item()
+        total_pfa_count += (detected & (~gt_mask)).sum().item()
+        total_bk += (~gt_mask).sum().item()
         
     Pd = total_pd_count / total_target if total_target > 0 else 0.0
     Pfa = total_pfa_count / total_bk if total_bk > 0 else 0.0
