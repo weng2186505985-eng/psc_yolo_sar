@@ -1,0 +1,40 @@
+# === 数据集与模型权重 ===
+HRSID_jpg/
+checkpoints/
+*.pt
+*.pth
+*.weights
+
+# === 训练日志与可视化结果 ===
+logs/
+runs/
+*.png
+*.jpg
+*.csv
+*results.txt
+
+# === Python 编译缓存 ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# === 虚拟环境 ===
+venv/
+.venv/
+env/
+.env
+
+# === IDE 与系统缓存 ===
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === 确保关键文件白名单（防止被意外忽略） ===
+!*.py
+!requirements.txt
+!README.md
+!configs/
