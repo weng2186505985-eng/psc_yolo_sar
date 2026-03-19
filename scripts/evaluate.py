@@ -5,10 +5,11 @@ import torch
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from configs.base_config import BaseConfig
-from models.psc_yolo import build_psc_yolo
+from models.psc_yolo import build_psc_yolo, replace_activations
 from data.dataloader import get_dataloaders
 from engine.evaluator import Evaluator
 from utils.checkpoint import load_checkpoint
+from ultralytics import YOLO
 
 def main():
     config = BaseConfig()
@@ -16,15 +17,16 @@ def main():
     
     _, test_loader, inshore_loader, offshore_loader = get_dataloaders(config)
     
-    model = build_psc_yolo()
-    model.model.to(device)
-    
-    best_weights = os.path.join(config.CHECKPOINT_DIR, "best.pth")
+    best_weights = os.path.join(config.CHECKPOINT_DIR, "best.pt")
     if os.path.exists(best_weights):
         print(f"Loading checkpoint from {best_weights}")
-        load_checkpoint(model, None, best_weights)
+        model = YOLO(best_weights, task='detect')
+        replace_activations(model.model)
     else:
-        print("Warning: No best.pth found, evaluating with initial weights or pre-trained base.")
+        print("Warning: No best.pt found, using pretrained base weights.")
+        model = build_psc_yolo()
+        
+    model.model.to(device)
     
     results = {}
     print("Starting Evaluation on Overall Test Set...")

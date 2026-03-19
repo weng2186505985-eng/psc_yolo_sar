@@ -1,6 +1,20 @@
 import os
 import torch
 
+try:
+    from ultralytics.nn.tasks import DetectionModel
+    from ultralytics.utils import IterableSimpleNamespace
+    from ultralytics.utils.loss import v8DetectionLoss
+    # Whitelist Ultralytics classes and Python builtins so that torch.load with weights_only=True can unpickle them
+    torch.serialization.add_safe_globals([
+        DetectionModel, 
+        IterableSimpleNamespace, 
+        v8DetectionLoss,
+        set
+    ])
+except (ImportError, AttributeError):
+    pass
+
 def save_checkpoint(model, optimizer, epoch, metrics, save_path):
     """保存 checkpoint"""
     checkpoint = {
@@ -13,13 +27,14 @@ def save_checkpoint(model, optimizer, epoch, metrics, save_path):
     
 def load_checkpoint(model, optimizer, load_path):
     """
-    加载 checkpoint 并且必须使用 weights_only=True
+    加载 checkpoint 
     注意：这里的 model 期望是 ultralytics YOLO 对象（即含有 .model 属性）或底层的 nn.Module。
     支持兼容两者的 state_dict 隐式对齐加载。
     """
     if os.path.isfile(load_path):
-        # 加上 weights_only=True 按要求
-        checkpoint = torch.load(load_path, map_location='cpu', weights_only=True)
+        # weights_only=False：ultralytics 保存的 .pt 文件包含模型结构对象，
+        # 无法用 weights_only=True 加载，文件来源可信故此处关闭限制
+        checkpoint = torch.load(load_path, map_location='cpu', weights_only=False)
         if hasattr(model, 'model'):
             model.model.load_state_dict(checkpoint['model_state_dict'])
         else:

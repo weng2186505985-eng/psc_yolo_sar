@@ -6,11 +6,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from configs.base_config import BaseConfig
 from data.dataloader import get_dataloaders
-from models.psc_yolo import build_psc_yolo
+from models.psc_yolo import build_psc_yolo, replace_activations
 from baselines.plain_yolo import build_plain_yolo
 from baselines.cfar import evaluate_cfar
 from engine.evaluator import Evaluator
 from utils.checkpoint import load_checkpoint
+from ultralytics import YOLO
 
 def evaluate_model(model_name, get_model_func, dataloader, config, load_path=None):
     device = torch.device(config.DEVICE)
@@ -54,8 +55,16 @@ def main():
     
     # 3. PSC-YOLOv8
     print("\nRunning PSC-YOLOv8n...")
-    psc_weights = os.path.join(config.CHECKPOINT_DIR, "best.pth")
-    psc_res = evaluate_model("PSC-YOLOv8n", build_psc_yolo, test_loader, config, load_path=psc_weights)
+    psc_weights = os.path.join(config.CHECKPOINT_DIR, "best.pt")
+    if os.path.exists(psc_weights):
+        model = YOLO(psc_weights, task='detect')
+        replace_activations(model.model)
+        evaluator = Evaluator(test_loader, torch.device(config.DEVICE), iou_thresh=config.IOU_THRESHOLD, conf_thresh=config.CONF_THRESHOLD)
+        psc_res = evaluator.evaluate(model, scene_name="PSC-YOLOv8n-Overall")
+    else:
+        print("Warning: No best.pt found, skipping PSC-YOLOv8n baseline.")
+        psc_res = {"mAP@0.5": 0.0, "Pd": 0.0, "Pfa": 0.0}
+        
     results["PSC-YOLOv8n"] = {
         "mAP@0.5": psc_res["mAP@0.5"],
         "Pd": psc_res["Pd"],

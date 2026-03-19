@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from pycocotools.cocoeval import COCOeval
+from ultralytics import YOLO
 try:
     from sklearn.metrics import auc
 except ImportError:
@@ -59,15 +60,9 @@ class Evaluator:
             if images.size(1) == 1:
                 images = images.repeat(1, 3, 1, 1)
                 
-            # Ultralytics model predict
-            # 注意: pt_model 预测输出可能是 [B, num_classes+4, max_preds]
-            # 为了方便，我们可以直接用 Ultralytics 的 predict 接口，或者直接 forward
-            # 如果使用 raw YOLOv8 forward：
-            preds = model(images)
-            
-            # 使用非极大值抑制（NMS）等后处理。如果直接调 ultralytics 模型：
-            # 这里为了避免复杂 NMS，最好直接用 Ultralytics 自带的方法。
-            # preds 会返回 Results 对象！但这取决于传入的 model 是 ultralytics.YOLO 实例还是 nn.Module
+            # 使用 Ultralytics 的 predict 接口，它会自动处理图像归一化、缩放和 NMS
+            # 为了获取所有可能的高精度检测，我们将 conf 设置为极低（conf_thresh 通常在初始化时设为 0.001）
+            preds = model.predict(images, conf=self.conf_thresh, verbose=False)
             
             for i, target in enumerate(batch["targets"]):
                 image_id = int(target["image_id"])
@@ -148,8 +143,7 @@ class Evaluator:
         # ROC 图基于图级别的最大置信度（仍然可用但只供参考）
         image_max_confs = np.array(image_max_confs)
         image_has_gt = np.array(image_has_gt)
-        pos_mask = (image_has_gt == 1)
-        neg_mask = (image_has_gt == 0)
+        total_neg = np.sum(image_has_gt == 0)
         # 如果存在阴性样本才能画图级别 ROC
         if total_neg > 0 and save_dir:
             from sklearn.metrics import roc_curve, auc

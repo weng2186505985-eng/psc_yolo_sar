@@ -105,7 +105,7 @@ def train_yolo(model, config: BaseConfig, dataloaders=None):
     best_weights = os.path.join(config.PROJECT_ROOT, "logs", "train", "weights", "best.pt")
     if os.path.exists(best_weights):
         os.makedirs(config.CHECKPOINT_DIR, exist_ok=True)
-        shutil.copy(best_weights, os.path.join(config.CHECKPOINT_DIR, "best.pth"))
-        print(f"Copied best model weights to {os.path.join(config.CHECKPOINT_DIR, 'best.pth')}")
+        shutil.copy(best_weights, os.path.join(config.CHECKPOINT_DIR, "best.pt"))
+        print(f"Copied best model weights to {os.path.join(config.CHECKPOINT_DIR, 'best.pt')}")
     else:
         print("Warning: best.pt not found in ultralytics run dir.")
